@@ -1,3 +1,6 @@
 .directory
 out/
 files/
+
+*.bin
+*.exe
