@@ -248,7 +248,8 @@ func parseBACKS(filename, filebase string) error {
 
 		os.Mkdir(filebase, os.FileMode(0775))
 
-		outFile, err := os.Create(fmt.Sprintf("%s/outfile_%d.png", filebase, i))
+		outPath := filepath.Join(filebase, fmt.Sprintf("outfile_%d.png", i))
+		outFile, err := os.Create(outPath)
 		if err != nil {
 			panic(err)
 		}
@@ -342,7 +343,8 @@ func writeImage(file io.Reader, filebase string, width, height, index int) error
 
 	os.Mkdir(filebase, os.FileMode(0775))
 
-	outFile, err := os.Create(fmt.Sprintf("%s/outfile_%d.png", filebase, index))
+	outPath := filepath.Join(filebase, fmt.Sprintf("outfile_%d.png", index))
+	outFile, err := os.Create(outPath)
 	if err != nil {
 		return err
 	}
