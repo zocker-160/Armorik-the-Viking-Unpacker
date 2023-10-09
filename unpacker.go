@@ -287,6 +287,7 @@ func parseMOTIV(filename, filebase string) error {
 	// 3 sprites of size 64x64 pixels
 	// After each sprite lies its transparency mask, also 2 bits per pixel.
 
+	os.Mkdir(filebase, os.FileMode(0775))
 	index := 0
 
 	fmt.Println("loading 256 32x32")
@@ -340,8 +341,6 @@ func writeImage(file io.Reader, filebase string, width, height, index int) error
 	}
 
 	fmt.Println("Writing file", index)
-
-	os.Mkdir(filebase, os.FileMode(0775))
 
 	outPath := filepath.Join(filebase, fmt.Sprintf("outfile_%d.png", index))
 	outFile, err := os.Create(outPath)
