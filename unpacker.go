@@ -373,6 +373,7 @@ func main() {
 		}
 	default:
 		fmt.Println("ERROR: unsupported file", filebase)
+		return
 	}
 
 	fmt.Println("DONE!")
