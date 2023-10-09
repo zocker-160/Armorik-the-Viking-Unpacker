@@ -82,6 +82,8 @@ func (img *CGAImage) At(x, y int) color.Color {
 			alphaValue = img.AlphaData[index]
 		}
 
+		alphaValue = alphaValue & 0x03
+
 		if alphaValue == 0x03 {
 			color.A = 0x00
 		}
@@ -264,7 +266,94 @@ func parseBACKS(filename, filebase string) error {
 }
 
 func parseMOTIV(filename, filebase string) error {
-	// TODO
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	filesize := stat.Size()
+	fmt.Println("File Size:", filesize)
+
+	//// Contents of MOTIFS.BIN
+	// 256 sprites of size 32x32 pixels
+	// 3 sprites of size 48x48 pixels
+	// 3 sprites of size 64x64 pixels
+	// After each sprite lies its transparency mask, also 2 bits per pixel.
+
+	index := 0
+
+	fmt.Println("loading 256 32x32")
+	for i := 0; i < 256; i++ {
+		err = writeImage(file, filebase, 32, 32, index)
+		if err != nil {
+			return err
+		}
+		index++
+	}
+
+	fmt.Println("loading 3 48x48")
+	for i := 0; i < 3; i++ {
+		err = writeImage(file, filebase, 48, 48, index)
+		if err != nil {
+			return err
+		}
+		index++
+	}
+
+	fmt.Println("loading 3 64x64")
+	for i := 0; i < 3; i++ {
+		err = writeImage(file, filebase, 64, 64, index)
+		if err != nil {
+			return err
+		}
+		index++
+	}
+
+	return nil
+}
+
+func writeImage(file io.Reader, filebase string, width, height, index int) error {
+	size := width*height / 4
+	color := make([]byte, size)
+	alpha := make([]byte, size)
+
+	if _, err := file.Read(color); err != nil {
+		return err
+	}
+
+	if _, err := file.Read(alpha); err != nil {
+		return err
+	}
+
+	img := CGAImage{
+		Width: width, Height: height, BPP: 2,
+		HasAlpha: true,
+		Data: color,
+		AlphaData: alpha,
+	}
+
+	fmt.Println("Writing file", index)
+
+	os.Mkdir(filebase, os.FileMode(0775))
+
+	outFile, err := os.Create(fmt.Sprintf("%s/outfile_%d.png", filebase, index))
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	err = png.Encode(outFile, &img)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
