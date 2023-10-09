@@ -13,22 +13,20 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"path/filepath"
 )
 
-const WIDTH = 320
-const HEIGHT = 200
-const BPP = 2
-
-const IMGSIZE = (WIDTH * HEIGHT) / 4
-
 // CGA color palette
-var COLOR_0 = color.Black
+var COLOR_0 = color.NRGBA{0x00, 0x00, 0x00, 0xFF}
 var COLOR_1 = color.NRGBA{0x55, 0xFF, 0xFF, 0xFF}
 var COLOR_2 = color.NRGBA{0xFF, 0x55, 0xFF, 0xFF}
-var COLOR_3 = color.White
+var COLOR_3 = color.NRGBA{0xFF, 0xFF, 0xFF, 0xFF}
 
 type CGAImage struct {
+	Width, Height, BPP int
 	Data []byte
+	HasAlpha bool
+	AlphaData []byte
 }
 
 func (img *CGAImage) ColorModel() color.Model {
@@ -36,12 +34,13 @@ func (img *CGAImage) ColorModel() color.Model {
 }
 
 func (img *CGAImage) Bounds() image.Rectangle {
-	return image.Rect(0, 0, WIDTH, HEIGHT)
+	return image.Rect(0, 0, img.Width, img.Height)
 }
 
 func (img *CGAImage) At(x, y int) color.Color {
-	bits := (y * WIDTH * BPP) + x * BPP
+	bits := (y * img.Width * img.BPP) + x * img.BPP
 	var value byte
+	var color color.NRGBA
 
 	switch index := bits / 8; bits % 8 {
 	case 0:
@@ -58,36 +57,54 @@ func (img *CGAImage) At(x, y int) color.Color {
 
 	switch value {
 	case 0x00:
-		return COLOR_0
+		color = COLOR_0
 	case 0x01:
-		return COLOR_1
+		color = COLOR_1
 	case 0x02:
-		return COLOR_2
+		color = COLOR_2
 	case 0x03:
-		return COLOR_3
+		color = COLOR_3
+	default:
+		panic(fmt.Errorf("Unknown color index %d", value))
 	}
 
-	panic(fmt.Errorf("Unknown color index %d", value))
+	if img.HasAlpha {
+		var alphaValue byte
+
+		switch index := bits / 8; bits % 8 {
+		case 0:
+			alphaValue = img.AlphaData[index] >> 6
+		case 2:
+			alphaValue = img.AlphaData[index] >> 4
+		case 4:
+			alphaValue = img.AlphaData[index] >> 2
+		case 6:
+			alphaValue = img.AlphaData[index]
+		}
+
+		if alphaValue == 0x03 {
+			color.A = 0x00
+		}
+	}
+
+	return color
 }
 
-
-type Header struct {
-	Unk1, Unk2, Unk3, Unk4 uint16
-}
-
-func deinterlace(data []byte) (*bytes.Buffer, error) {
-	// data is expected to be interlaced CGA
+func (img *CGAImage) Deinterlace() error {
 	// see: https://moddingwiki.shikadi.net/wiki/Raw_CGA_Data
 
-	even := bytes.NewBuffer(data[:IMGSIZE/2])
-	odd := bytes.NewBuffer(data[IMGSIZE/2:IMGSIZE])
+	data := img.Data
+	imgsize := img.GetImageSize()
+
+	even := bytes.NewBuffer(data[:imgsize/2])
+	odd := bytes.NewBuffer(data[imgsize/2:imgsize])
 
 	outbuf := new(bytes.Buffer)
-	outbuf.Grow(IMGSIZE)
+	outbuf.Grow(imgsize)
 
-	row := make([]byte, WIDTH / 4)
+	row := make([]byte, img.Width / 4)
 
-	for i := 0; i < HEIGHT; i += 2 {
+	for i := 0; i < img.Height; i += 2 {
 		even.Read(row)
 		outbuf.Write(row)
 
@@ -95,7 +112,17 @@ func deinterlace(data []byte) (*bytes.Buffer, error) {
 		outbuf.Write(row)
 	}
 
-	return outbuf, nil
+	img.Data = outbuf.Bytes()
+
+	return nil
+}
+
+func (img *CGAImage) GetImageSize() int {
+	return (img.Width * img.Height * img.BPP) / 8
+}
+
+type Header struct {
+	Unk1, Unk2, Unk3, Unk4 uint16
 }
 
 func parseImage(fr *bufio.Reader) (*bytes.Buffer, error) {
@@ -160,24 +187,14 @@ func parseImage(fr *bufio.Reader) (*bytes.Buffer, error) {
 		fmt.Println("LEN:", decomb.Len(), "POS:", pos+8)
 	}
 
-	fmt.Println("deinterlace")
-
-	//return decomb, nil
-
-	deint, _ := deinterlace(decomb.Bytes())
-	return deint, nil
+	return decomb, nil
 }
 
-func main() {
-	fmt.Println("Amorik the Viking extractor by zocker_160")
-
-	filename := os.Args[1]
-
+func parseBACKS(filename, filebase string) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
-
 	defer file.Close()
 
 	stat, err := file.Stat()
@@ -216,17 +233,23 @@ func main() {
 			panic(err)
 		}
 
+		fmt.Println("deinterlace")
 		
+		img := &CGAImage{
+			Width: 320, Height: 200, BPP: 2,
+			HasAlpha: false,
+			Data: imgBuf.Bytes(),
+		}
+		img.Deinterlace()
+
 		fmt.Println("Writing file", i)
 
-		os.Mkdir("out", os.FileMode(0775))
+		os.Mkdir(filebase, os.FileMode(0775))
 
-		outFile, err := os.Create(fmt.Sprintf("out/outfile_%d.png", i))
+		outFile, err := os.Create(fmt.Sprintf("%s/outfile_%d.png", filebase, i))
 		if err != nil {
 			panic(err)
 		}
-		
-		var img image.Image = &CGAImage{Data: imgBuf.Bytes()}
 
 		err = png.Encode(outFile, img)
 		if err != nil {
@@ -234,8 +257,33 @@ func main() {
 		}
 
 		//imgBuf.WriteTo(outFile)
-
 		outFile.Close()
+	}
+
+	return nil
+}
+
+func parseMOTIV(filename, filebase string) error {
+	// TODO
+}
+
+func main() {
+	fmt.Println("Amorik the Viking extractor by zocker_160")
+
+	filename := os.Args[1]
+	filebase := filepath.Base(filename)
+
+	switch filebase {
+	case "BACKS.BIN":
+		if err := parseBACKS(filename, filebase); err != nil {
+			panic(err)
+		}
+	case "MOTIFS.BIN":
+		if err := parseMOTIV(filename, filebase); err != nil {
+			panic(err)
+		}
+	default:
+		fmt.Println("ERROR: unsupported file", filebase)
 	}
 
 	fmt.Println("DONE!")
