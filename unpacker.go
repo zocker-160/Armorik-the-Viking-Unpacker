@@ -14,7 +14,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // CGA color palette
@@ -362,15 +361,14 @@ func main() {
 
 	filename := os.Args[1]
 	filebase := filepath.Base(filename)
-	outfolder := strings.TrimSuffix(filepath.Base(filename), ".BIN")
 
 	switch filebase {
 	case "BACKS.BIN":
-		if err := parseBACKS(filename, outfolder); err != nil {
+		if err := parseBACKS(filename, filebase); err != nil {
 			panic(err)
 		}
 	case "MOTIFS.BIN":
-		if err := parseMOTIV(filename, outfolder); err != nil {
+		if err := parseMOTIV(filename, filebase); err != nil {
 			panic(err)
 		}
 	default:
