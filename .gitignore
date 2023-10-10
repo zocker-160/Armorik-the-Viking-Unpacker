@@ -2,6 +2,7 @@
 out/
 files/
 *.BIN/
+*_BIN/
 
 *.bin
 *.exe

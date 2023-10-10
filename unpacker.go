@@ -365,11 +365,11 @@ func main() {
 
 	switch filebase {
 	case "BACKS.BIN":
-		if err := parseBACKS(filename, filebase); err != nil {
+		if err := parseBACKS(filename, "BACKS_BIN"); err != nil {
 			panic(err)
 		}
 	case "MOTIFS.BIN":
-		if err := parseMOTIV(filename, filebase); err != nil {
+		if err := parseMOTIV(filename, "MOTIFS_BIN"); err != nil {
 			panic(err)
 		}
 	default:
